@@ -8,12 +8,12 @@ Rust with Slint.
 
 ## Download
 
-Get `squ4t-1.0.0-windows-x64.zip` from [Releases](https://github.com/braga1k/squ4t/releases),
+Get `squ4t-1.0.1-windows-x64.zip` from [Releases](https://github.com/braga1k/squ4t/releases),
 unzip it anywhere and run `squ4t.exe`. There is no installer and nothing else to install.
 
 The executables are not code-signed, so Windows SmartScreen may warn the first time: choose
 **More info → Run anyway**. Each release lists the SHA-256 of the zip, to check it with
-`Get-FileHash squ4t-1.0.0-windows-x64.zip`.
+`Get-FileHash squ4t-1.0.1-windows-x64.zip`.
 
 The tray icon is a ring that empties as your next break approaches. It fills with ember orange
 when a break is due, and shows a pause sign while reminders are paused. Hover over it for the

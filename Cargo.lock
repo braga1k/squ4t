@@ -4077,7 +4077,7 @@ dependencies = [
 
 [[package]]
 name = "squ4t"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "slint",
  "slint-build",
@@ -4087,7 +4087,7 @@ dependencies = [
 
 [[package]]
 name = "squ4t-core"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "flate2",
  "serde_json",
