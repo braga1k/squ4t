@@ -41,7 +41,12 @@ After a long sleep the app sends at most one overdue reminder, not a backlog.
 Windows 11 puts new tray icons behind the **^** arrow. To keep it in view, drag it onto the
 taskbar, or turn it on in **Settings → Personalization → Taskbar → Other system tray icons**.
 
-Reminders are Windows notifications. Do not disturb and Focus silence them, as they do for any app.
+Reminders are Windows notifications, headed by squ4t and its ring; clicking one opens the panel.
+Do not disturb and Focus silence them, as they do for any app.
+
+Recording a set plays one short sound, a weight plate set down on a rubber floor. It is made by
+the app itself and plays as a system sound, so the **System sounds** slider in Windows' volume
+mixer sets its level or mutes it.
 
 ## Your data
 
@@ -95,7 +100,7 @@ with an 8 px radius. The two settings share one row, each label in front of its 
 light theme). One easing curve, `cubic-bezier(0.22, 1, 0.36, 1)`, for everything: the panel rises
 10 px as it fades in and sinks 10 px as it fades out, a pressed button scales to 0.98, the switch
 knob crosses without bouncing, and Record and Save answer with a check that rises above the
-button. The colours follow Windows' light or dark app mode and high contrast; with animations off
+button, with the plate's thud. The colours follow Windows' light or dark app mode and high contrast; with animations off
 in Windows, nothing moves.
 
 ![The panel in the light theme, reminders paused](docs/panel-light.png)
@@ -124,6 +129,7 @@ turns that off.
 | `crates/core/src/look.rs` (unit tests) | Text and accent contrast in both themes; high contrast uses Windows' colours | pass |
 | `tests/crash.ps1` | `squ4t-cli add 1` killed at random moments mid-write (200 runs, 82 killed) | ledger always valid, no count lost |
 | `tests/ui.ps1` | Every control by UI Automation: Record, Undo, Snooze, the switch, Save off until a field changes; the window fits its layout | pass |
+| Notification, by hand | `squ4t-cli test-alert`, then a screen capture: the banner is headed "squ4t" with the ring; clicking it opens the panel | shown |
 | `tests/reopen.ps1` | Open, close and reopen the panel twice; each reopened panel must match the first, pixel for pixel | 0.0% different |
 | `tests/measure.ps1` | Panel ready 69 ms (median of 10); peak 17.9 MB; at rest 16.7 MB working set, 2.7 MB private, about 0.16 s of CPU a minute | |
 
@@ -141,7 +147,8 @@ threshold, or `version: true` acceptance each makes it fail.
 | Ledger checked every 15 s | A timer set to the deadline; rechecked on wake from sleep and on clock changes, plus a 5-minute safety net | Fewer wake-ups; same at-most-one-reminder rule |
 | `0600` file mode | The file lives in your profile, whose permissions already keep other users out | Windows has no mode bits |
 | English and Portuguese | English | |
-| Notification through `omarchy notification` | A Windows notification from the tray icon, labelled `squ4t.exe` | The platform's own; a proper app name needs an installer to register it |
+| Notification through `omarchy notification` | A Windows notification from the tray icon, headed by squ4t and its ring | The platform's own |
+| No sound | Recording a set plays a short sound: a weight plate set down on a rubber floor | Synthesised in the app; the System Sounds slider in the volume mixer sets its level or mutes it |
 
 ## Not verified
 

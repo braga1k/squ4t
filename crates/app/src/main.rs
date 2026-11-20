@@ -8,6 +8,7 @@
 
 mod anim;
 mod art;
+mod sound;
 mod tray;
 
 use std::cell::RefCell;
@@ -140,6 +141,9 @@ impl App {
                     self.notify();
                 }
                 // Motion.Result at the button that was pressed: Record, or Save settings.
+                if action == "add" {
+                    sound::recorded();
+                }
                 if (action == "add" || action == "settings") && self.visible && !self.closing {
                     self.ui.set_result_target(if action == "settings" { 1 } else { 0 });
                     self.anim.confirm(&self.ui);

@@ -20,7 +20,7 @@ use windows_sys::Win32::System::Registry::{RegGetValueW, HKEY_CURRENT_USER, RRF_
 use windows_sys::Win32::UI::Accessibility::{HCF_HIGHCONTRASTON, HIGHCONTRASTW};
 use windows_sys::Win32::UI::HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI};
 use windows_sys::Win32::UI::Shell::{
-    Shell_NotifyIconGetRect, Shell_NotifyIconW, NIF_ICON, NIF_INFO, NIF_MESSAGE, NIF_SHOWTIP, NIF_TIP, NIIF_INFO, NIIF_RESPECT_QUIET_TIME, NIM_ADD, NIM_DELETE, NIM_MODIFY,
+    Shell_NotifyIconGetRect, Shell_NotifyIconW, NIF_ICON, NIF_INFO, NIF_MESSAGE, NIF_SHOWTIP, NIF_TIP, NIIF_NONE, NIIF_RESPECT_QUIET_TIME, NIM_ADD, NIM_DELETE, NIM_MODIFY,
     NIM_SETVERSION, NIN_BALLOONUSERCLICK, NIN_SELECT, NOTIFYICONDATAW, NOTIFYICONIDENTIFIER, NOTIFYICON_VERSION_4,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -249,8 +249,10 @@ impl Tray {
         self.icon = icon;
     }
 
-    /// A balloon, which Windows 10 and 11 show as a notification banner. Quiet time (the first
-    /// hour after a new user's first logon) is respected; Do not disturb is applied by Windows.
+    /// A balloon, which Windows 10 and 11 show as a notification banner headed by the program's
+    /// FileDescription and icon: squ4t and the ember ring. No second icon in the body, which
+    /// already has the ring above it. (NIIF_USER with the ring as the balloon icon made Windows
+    /// drop the notification.) Quiet time is respected; Do not disturb is applied by Windows.
     pub fn notify(&self, title: &str, body: &str) {
         let mut d = self.data();
         d.uFlags = NIF_INFO | NIF_SHOWTIP | NIF_TIP;
@@ -259,7 +261,7 @@ impl Tray {
         d.szInfoTitle[..t.len()].copy_from_slice(&t);
         let b = fit_utf16(body, d.szInfo.len() - 1);
         d.szInfo[..b.len()].copy_from_slice(&b);
-        d.dwInfoFlags = NIIF_INFO | NIIF_RESPECT_QUIET_TIME;
+        d.dwInfoFlags = NIIF_NONE | NIIF_RESPECT_QUIET_TIME;
         // SAFETY: as above.
         unsafe { Shell_NotifyIconW(NIM_MODIFY, &d) };
     }
