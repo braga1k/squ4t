@@ -1,0 +1,56 @@
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Rust 1.86
+        run: |
+          rustup toolchain install 1.86.0 --profile minimal --component rustfmt,clippy
+          rustup default 1.86.0
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Lint
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+      - name: Tests (store.py oracle, motion.cs poses, the ported store tests)
+        run: cargo test --locked --release --workspace -- --nocapture
+      - name: motion.cs still gives the recorded poses
+        shell: pwsh
+        run: |
+          .\oracle\motion\record.ps1
+          git diff --exit-code -- oracle/golden/motion.json
+      - name: Killed mid-write, the ledger survives
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p squ4t --features test-hooks
+          .\tests\crash.ps1 -Rounds 300
+      - name: Release build
+        run: cargo build --locked --release -p squ4t
+      - uses: actions/upload-artifact@v4
+        with:
+          name: squ4t-windows
+          path: |
+            target/release/squ4t.exe
+            target/release/squ4t-cli.exe
+
+  # The oracle was recorded on Windows with fcntl and a directory fsync stood in for.
+  # Here store.py runs on Linux unassisted and must record exactly the same steps.
+  oracle:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: braga1k/omarchy-squat-break
+          ref: bff077188a9aca0be42bb4b4369b50106739aa7b
+          path: plugin
+      - name: Record store.py again and compare
+        run: |
+          python3 -X utf8 oracle/driver.py plugin/store.py /tmp/ledger.jsonl
+          gunzip -c oracle/golden/ledger.jsonl.gz | cmp - /tmp/ledger.jsonl

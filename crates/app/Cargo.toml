@@ -1,0 +1,53 @@
+[package]
+name = "squ4t"
+description = "Squat reminders, a live tray countdown, and daily/all-time rep tracking for Windows."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+build = "build.rs"
+
+[lib]
+name = "squ4t"
+path = "src/lib.rs"
+
+[[bin]]
+name = "squ4t"
+path = "src/main.rs"
+
+[[bin]]
+name = "squ4t-cli"
+path = "src/bin/squ4t-cli.rs"
+
+[dependencies]
+squ4t-core = { path = "../core" }
+slint = { version = "=1.13.1", default-features = false, features = ["std", "compat-1-2", "backend-winit", "renderer-software", "accessibility", "unstable-winit-030"] }
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Globalization",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Console",
+    "Win32_System_IO",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Power",
+    "Win32_System_Registry",
+    "Win32_System_SystemInformation",
+    "Win32_System_Threading",
+    "Win32_System_Time",
+    "Win32_UI_Accessibility",
+    "Win32_UI_HiDpi",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[build-dependencies]
+slint-build = "=1.13.1"
+
+[features]
+# Lets the crash test pause a write just before the rename (SQUAT_TEST_PAUSE_BEFORE_RENAME_MS).
+test-hooks = []

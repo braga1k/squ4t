@@ -1,0 +1,36 @@
+{
+  "title": "squ4t",
+  "loading": "Loading…",
+  "error": "Could not save data. Check ledger permissions or format.",
+  "paused": "Reminders paused",
+  "due": "Time to stand up and do squats",
+  "next": "Next break in %1 min",
+  "tooltip": "Today: %1 · All time: %2\n%3",
+  "today": "Today",
+  "total": "All time",
+  "done": "Squats completed",
+  "record": {
+    "one": "Record %1 squat",
+    "other": "Record %1 squats"
+  },
+  "undo": "Undo last entry",
+  "snooze": "Snooze 5 min",
+  "interval": "Interval (min)",
+  "suggested": "Squats per break",
+  "save": "Save settings",
+  "resume": "Resume",
+  "pause": "Pause",
+  "test": "Test alert",
+  "hint": "Only confirmed squats count. Entries stay saved locally. The daily counter follows your computer’s local date.",
+  "alert.title": "Time for squats",
+  "alert.body": {
+    "one": "Stand up for %1 squat. Click here to record your completed reps.",
+    "other": "Stand up for %1 squats. Click here to record your completed reps."
+  },
+  "reminders": "Reminders",
+  "menu.open": "Open squ4t",
+  "menu.snooze": "Snooze 5 min",
+  "menu.startup": "Start with Windows",
+  "menu.exit": "Exit",
+  "countdown": "Next break in %1"
+}

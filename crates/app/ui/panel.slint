@@ -1,0 +1,442 @@
+// The squ4t panel: the controls of BarWidget.qml (omarchy-squat-break), after an unslop pass
+// (heydamir/unslop, CC BY 4.0). Colours come from Rust (crates/core/src/look.rs). Spacing sits on
+// a 4px grid: 16 around and between groups, 8 inside them, 4 between a label and its field.
+
+export global Theme {
+    in property <color> surface: #141415;
+    in property <color> raised: #232325;
+    in property <color> raised-hover: #2C2C2F;
+    in property <color> hairline: #EDEDED14;
+    in property <color> text: #EDEDED;
+    in property <color> text-secondary: #A1A1A6;
+    in property <color> text-muted: #85858B;
+    in property <color> primary: #EDEDED;
+    in property <color> primary-hover: #FFFFFF;
+    in property <color> on-primary: #141415;
+    in property <color> accent: #F07A3A;
+    in property <color> on-accent: #FFFFFF;
+    in property <color> focus: #EDEDED;
+    in property <color> negative: #E5484D;
+    in property <bool> motion: true;
+    // The countdown ring beside the status line, drawn by Rust.
+    in property <image> ring;
+    in property <image> check-mark;
+}
+
+// A button: the primary one is an off-white fill, the others a raised surface with a hairline.
+// Hover steps the surface; press scales to 0.98. One curve, 120 ms.
+component Button inherits Rectangle {
+    in property <string> text;
+    in property <bool> primary;
+    in property <bool> enabled: true;
+    callback clicked;
+    out property <bool> pressed: touch.pressed || key-down;
+    property <bool> key-down;
+    property <bool> hover: touch.has-hover && root.enabled;
+    height: 32px;
+    min-width: label.preferred-width + 32px;
+    horizontal-stretch: 1;
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if (root.enabled) { root.clicked(); } }
+    forward-focus: focus;
+
+    property <float> scale: root.pressed && Theme.motion ? 0.98 : 1;
+    animate scale { duration: 120ms; easing: cubic-bezier(0.22, 1, 0.36, 1); }
+
+    surface := Rectangle {
+        width: parent.width * root.scale;
+        height: parent.height * root.scale;
+        x: (parent.width - self.width) / 2;
+        y: (parent.height - self.height) / 2;
+        opacity: root.enabled ? 1 : 0.4;
+        border-radius: 8px;
+        background: root.primary ? (root.hover ? Theme.primary-hover : Theme.primary) : (root.hover ? Theme.raised-hover : Theme.raised);
+        animate background { duration: 120ms; easing: cubic-bezier(0.22, 1, 0.36, 1); }
+        border-width: focus.has-focus ? 2px : 1px;
+        border-color: focus.has-focus ? Theme.focus : root.primary ? transparent : Theme.hairline;
+        label := Text {
+            text: root.text;
+            color: root.primary ? Theme.on-primary : Theme.text;
+            font-size: 13px;
+            font-weight: root.primary ? 600 : 400;
+            horizontal-alignment: center;
+            vertical-alignment: center;
+            accessible-role: none;
+        }
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+    focus := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if (event.text == " " || event.text == Key.Return) { root.key-down = true; return accept; }
+            reject
+        }
+        key-released(event) => {
+            if (root.key-down && (event.text == " " || event.text == Key.Return)) { root.key-down = false; root.clicked(); return accept; }
+            reject
+        }
+    }
+}
+
+// The raised number box of Ui.NumberField. Up/Down step by one; it reads as a spinner.
+component NumberBox inherits Rectangle {
+    in property <string> label;
+    in-out property <int> value;
+    in property <int> minimum: 1;
+    in property <int> maximum: 1000;
+    callback edited(int);
+    height: 32px;
+    border-radius: 8px;
+    background: Theme.raised;
+    border-width: input.has-focus ? 2px : 1px;
+    border-color: input.has-focus ? Theme.focus : Theme.hairline;
+    accessible-role: spinbox;
+    accessible-label: root.label;
+    accessible-value: root.value;
+    accessible-value-minimum: root.minimum;
+    accessible-value-maximum: root.maximum;
+    accessible-value-step: 1;
+    accessible-action-increment => { root.set(root.value + 1); }
+    accessible-action-decrement => { root.set(root.value - 1); }
+    accessible-action-set-value(v) => { if (v.is-float()) { root.set(v.to-float()); } }
+    input := TextInput {
+        x: 8px; width: parent.width - 16px;
+        height: parent.height;
+        vertical-alignment: center;
+        text: root.value;
+        color: Theme.text;
+        selection-background-color: Theme.accent.with-alpha(0.35);
+        font-size: 13px;
+        input-type: number;
+        single-line: true;
+        accessible-role: none;
+        edited => {
+            if (self.text.is-float()) { root.set(self.text.to-float()); }
+        }
+        key-pressed(event) => {
+            if (event.text == Key.UpArrow) { root.set(root.value + 1); return accept; }
+            if (event.text == Key.DownArrow) { root.set(root.value - 1); return accept; }
+            reject
+        }
+        changed has-focus => {
+            if (!self.has-focus) { self.text = root.value; }
+        }
+    }
+    function set(v: float) {
+        root.value = max(root.minimum, min(root.maximum, round(v)));
+        if (!input.has-focus || input.text != root.value) { input.text = root.value; }
+        root.edited(root.value);
+    }
+}
+
+// Label above the box: next to a button that already fills the row.
+component NumberField inherits VerticalLayout {
+    in property <string> label;
+    in-out property <int> value;
+    in property <int> minimum: 1;
+    in property <int> maximum: 1000;
+    callback edited(int);
+    spacing: 4px;
+    Text { text: root.label; color: Theme.text-muted; font-size: 12px; accessible-role: none; }
+    NumberBox { label: root.label; value <=> root.value; minimum: root.minimum; maximum: root.maximum; edited(v) => { root.edited(v); } }
+}
+
+// Label in front of a 52-unit box, on the box's centre line: two settings share one row.
+component InlineField inherits HorizontalLayout {
+    in property <string> label;
+    in-out property <int> value;
+    in property <int> minimum: 1;
+    in property <int> maximum: 1000;
+    spacing: 8px;
+    Text { text: root.label; color: Theme.text-secondary; font-size: 12px; vertical-alignment: center; horizontal-stretch: 1; accessible-role: none; }
+    NumberBox { width: 52px; label: root.label; value <=> root.value; minimum: root.minimum; maximum: root.maximum; }
+}
+
+// The switch: 1nstall's knob flight with the Firm feel (no bounce), driven from Rust. The track
+// fills with the accent when on.
+component Switch inherits Rectangle {
+    in property <float> knob-x;
+    in property <float> knob-stretch;
+    in property <float> knob-height: 1;
+    in property <float> fill-opacity;
+    in property <float> ink-opacity;
+    in property <bool> enabled: true;
+    in property <bool> focused;
+    width: 36px;
+    height: 20px;
+    border-radius: 10px;
+    background: Theme.raised;
+    opacity: root.enabled ? 1 : 0.4;
+    Rectangle { border-radius: 10px; background: Theme.accent; opacity: root.fill-opacity; }
+    property <length> left: (3 + root.knob-x) * 1px;
+    property <length> right: (3 + root.knob-x + 14 + root.knob-stretch) * 1px;
+    property <length> half: 7px * root.knob-height;
+    for layer[i] in [0, 1]: Rectangle {
+        x: root.left; width: root.right - root.left;
+        y: 10px - root.half; height: root.half * 2;
+        border-radius: self.height / 2;
+        background: layer == 0 ? Theme.text-secondary : Theme.on-accent;
+        opacity: layer == 0 ? 1 : root.ink-opacity;
+    }
+    Rectangle { border-radius: 10px; border-width: root.focused ? 2px : 1px; border-color: root.focused ? Theme.focus : Theme.hairline; }
+}
+
+// The label and the switch share one click target and one UIA toggle.
+component SwitchRow inherits Rectangle {
+    in property <string> text;
+    in property <bool> checked;
+    in property <bool> enabled: true;
+    in property <float> knob-x; in property <float> knob-stretch; in property <float> knob-height: 1;
+    in property <float> fill-opacity; in property <float> ink-opacity;
+    callback toggled;
+    callback press(bool);
+    height: 32px;
+    horizontal-stretch: 1;
+    accessible-role: checkbox;
+    accessible-checkable: true;
+    accessible-checked: root.checked;
+    accessible-label: root.text;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { if (root.enabled) { root.toggled(); } }
+    forward-focus: focus;
+    property <bool> key-down;
+    HorizontalLayout {
+        spacing: 8px;
+        alignment: start;
+        VerticalLayout {
+            alignment: center;
+            Switch {
+                enabled: root.enabled; focused: focus.has-focus;
+                knob-x: root.knob-x; knob-stretch: root.knob-stretch; knob-height: root.knob-height;
+                fill-opacity: root.fill-opacity; ink-opacity: root.ink-opacity;
+            }
+        }
+        Text { text: root.text; vertical-alignment: center; font-size: 13px; color: root.enabled ? Theme.text : Theme.text-secondary; accessible-role: none; }
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: pointer;
+        changed pressed => { root.press(self.pressed); }
+        clicked => { root.toggled(); }
+    }
+    focus := FocusScope {
+        enabled: root.enabled;
+        key-pressed(event) => {
+            if (event.text == " ") { if (!root.key-down) { root.key-down = true; root.press(true); } return accept; }
+            reject
+        }
+        key-released(event) => {
+            if (event.text == " " && root.key-down) { root.key-down = false; root.press(false); root.toggled(); return accept; }
+            reject
+        }
+    }
+}
+
+component Separator inherits Rectangle {
+    height: 1px;
+    background: Theme.hairline;
+}
+
+export struct Strings {
+    title: string,
+    today: string,
+    total: string,
+    done: string,
+    undo: string,
+    snooze: string,
+    interval: string,
+    suggested: string,
+    save: string,
+    reminders: string,
+    hint: string,
+}
+
+export component Panel inherits Window {
+    in property <Strings> strings;
+    in property <string> status;
+    in property <bool> status-error;
+    in property <string> today-text: "0";
+    in property <string> total-text: "0";
+    in-out property <int> count: 20;
+    in-out property <int> interval-draft: 60;
+    in-out property <int> suggested-draft: 20;
+    in property <string> record-text;
+    in property <bool> can-act;
+    in property <bool> can-undo;
+    in property <bool> paused;
+    // The settings in the ledger. Save is off while the fields show exactly these.
+    in property <int> saved-interval: 60;
+    in property <int> saved-suggested: 20;
+    property <bool> settings-changed: root.interval-draft != root.saved-interval || root.suggested-draft != root.saved-suggested;
+    // Motion, driven from Rust. The window itself moves and fades (crates/app/src/anim.rs).
+    in property <float> knob-x; in property <float> knob-stretch; in property <float> knob-height: 1;
+    in property <float> fill-opacity; in property <float> ink-opacity;
+    in property <float> check-y;
+    in property <float> check-opacity;
+    // Which button the check rises from: 0 Record, 1 Save settings.
+    in property <int> result-target;
+    property <length> result-x: root.result-target == 1 ? save.absolute-position.x + save.width / 2 - root.absolute-position.x : record.absolute-position.x + record.width / 2 - root.absolute-position.x;
+    property <length> result-y: root.result-target == 1 ? save.absolute-position.y - root.absolute-position.y : record.absolute-position.y - root.absolute-position.y;
+    out property <length> content-height: layout.preferred-height;
+    // Raised by Rust whenever Windows drops the window's pixels (shown again, or switched in or
+    // out of see-through mode): the renderer only sends changed areas, so everything must change.
+    in property <int> repaint;
+
+    callback count-edited(int);
+    callback record(int);
+    callback undo();
+    callback snooze();
+    callback save(int, int);
+    callback toggle-reminders();
+    callback switch-press(bool);
+    callback close();
+
+    title: root.strings.title;
+    no-frame: true;
+    always-on-top: true;
+    width: 320px;
+    // Fixed, and equal to the layout's height (checked by tests/ui.ps1): binding it to the layout
+    // would measure text, and load the system fonts, as soon as the app starts.
+    height: 378px;
+    background: Theme.surface;
+    default-font-family: "Segoe UI";
+    default-font-size: 13px;
+
+    forward-focus: keys;
+    // Escape closes from anywhere: every control sits inside this scope.
+    keys := FocusScope {
+        width: 100%; height: 100%;
+        key-pressed(event) => {
+            if (event.text == Key.Escape) { root.close(); return accept; }
+            reject
+        }
+
+        // Covers the window in its own colour; a change of `repaint` makes the whole window dirty.
+        Rectangle { background: Theme.surface; opacity: Math.mod(root.repaint, 2) == 0 ? 1 : 0.999; }
+
+        // A hairline along the edge of the window; Windows 11 rounds the corners to 8.
+        Rectangle { border-radius: 8px; border-width: 1px; border-color: Theme.hairline; }
+
+        // Placed with an explicit size, so the window never asks the layout (and its text) for
+        // its size: measuring text loads the system fonts, which a closed panel must not do.
+        content := Rectangle {
+        x: 0; y: 0; width: root.width; height: root.height;
+        layout := VerticalLayout {
+            padding: 16px;
+            spacing: 16px;
+            alignment: start;
+
+            VerticalLayout {
+                spacing: 8px;
+                Text { text: root.strings.title; font-size: 16px; font-weight: 600; color: Theme.text; }
+                HorizontalLayout {
+                    spacing: 8px;
+                    // The signature: the tray's countdown ring.
+                    VerticalLayout {
+                        alignment: center;
+                        Image { width: 16px; height: 16px; source: Theme.ring; image-fit: fill; accessible-role: none; }
+                    }
+                    Text {
+                        text: root.status;
+                        color: root.status-error ? Theme.negative : Theme.text-secondary;
+                        font-size: 13px;
+                        vertical-alignment: center;
+                        wrap: word-wrap;
+                        horizontal-stretch: 1;
+                        accessible-role: text;
+                    }
+                }
+            }
+
+            HorizontalLayout {
+                spacing: 16px;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: 4px;
+                    Text { text: root.strings.today; color: Theme.text-muted; font-size: 12px; }
+                    Text { text: root.today-text; color: Theme.text; font-size: 28px; font-weight: 500; }
+                }
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: 4px;
+                    Text { text: root.strings.total; color: Theme.text-muted; font-size: 12px; }
+                    Text { text: root.total-text; color: Theme.text; font-size: 28px; font-weight: 500; }
+                }
+            }
+
+            Separator { }
+
+            VerticalLayout {
+                spacing: 8px;
+                HorizontalLayout {
+                    spacing: 8px;
+                    NumberField {
+                        width: 112px;
+                        label: root.strings.done;
+                        value <=> root.count;
+                        minimum: 1; maximum: 1000;
+                        edited(v) => { root.count-edited(v); }
+                    }
+                    VerticalLayout {
+                        alignment: end;
+                        record := Button {
+                            text: root.record-text;
+                            primary: true;
+                            enabled: root.can-act;
+                            clicked => { root.record(root.count); }
+                        }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    Button { text: root.strings.undo; enabled: root.can-act && root.can-undo; clicked => { root.undo(); } }
+                    Button { text: root.strings.snooze; enabled: root.can-act; clicked => { root.snooze(); } }
+                }
+            }
+
+            Separator { }
+
+            VerticalLayout {
+                spacing: 8px;
+                HorizontalLayout {
+                    spacing: 16px;
+                    InlineField { label: root.strings.interval; value <=> root.interval-draft; minimum: 1; maximum: 1440; }
+                    InlineField { label: root.strings.suggested; value <=> root.suggested-draft; minimum: 1; maximum: 1000; }
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    SwitchRow {
+                        text: root.strings.reminders;
+                        checked: !root.paused;
+                        enabled: root.can-act;
+                        knob-x: root.knob-x; knob-stretch: root.knob-stretch; knob-height: root.knob-height;
+                        fill-opacity: root.fill-opacity; ink-opacity: root.ink-opacity;
+                        toggled => { root.toggle-reminders(); }
+                        press(down) => { root.switch-press(down); }
+                    }
+                    save := Button { text: root.strings.save; horizontal-stretch: 0; enabled: root.can-act && root.settings-changed; clicked => { root.save(root.interval-draft, root.suggested-draft); } }
+                }
+            }
+        }
+
+        }
+
+        // The answer to Record and Save: a check that rises 4 above the button and fades.
+        Image {
+            x: root.result-x - 6px;
+            y: root.result-y - 14px + root.check-y * 1px;
+            width: 12px; height: 10px;
+            source: Theme.check-mark;
+            image-fit: fill;
+            opacity: root.check-opacity;
+            visible: root.check-opacity > 0.001;
+            accessible-role: none;
+        }
+    }
+}

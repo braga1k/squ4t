@@ -1,0 +1,13 @@
+[package]
+name = "squ4t-core"
+description = "The squ4t ledger, motion and palette, with no I/O."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[dev-dependencies]
+serde_json = { version = "1", features = ["float_roundtrip"] }
+flate2 = "1"
