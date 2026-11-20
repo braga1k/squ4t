@@ -8,16 +8,18 @@ Rust with Slint.
 
 ## Download
 
-Get `squ4t-1.1.0-windows-x64.zip` from [Releases](https://github.com/braga1k/squ4t/releases),
-unzip it anywhere and run `squ4t.exe`. There is no installer and nothing else to install.
+Get the zip of the [latest release](https://github.com/braga1k/squ4t/releases/latest)
+(`squ4t-<version>-windows-x64.zip`), unzip it anywhere and run `squ4t.exe`. There is no installer
+and nothing else to install. From 1.1.0 on, the app can update itself: see [Updates](#updates).
 
 The executables are not code-signed, so Windows SmartScreen may warn the first time: choose
 **More info → Run anyway**. Each release lists the SHA-256 of the zip, to check it with
-`Get-FileHash squ4t-1.1.0-windows-x64.zip`.
+`Get-FileHash` on the zip.
 
 The tray icon is a ring that empties as your next break approaches. It fills with ember orange
 when a break is due, and shows a pause sign while reminders are paused. Hover over it for the
-countdown and your totals. Click it to open the panel.
+countdown and your totals. Click it to open the panel: the two counts, Record, Undo and Snooze.
+The cog in its corner opens the settings.
 
 ## Use
 
@@ -96,7 +98,10 @@ squ4t-cli undo | pause | resume | snooze
 squ4t-cli settings 45 15
 squ4t-cli open | test-alert | quit
 squ4t-cli autostart on | off | status
-squ4t-cli update [install]```
+squ4t-cli update [install]
+```
+
+`update` says whether a newer release exists; `update install` also installs it.
 
 ## Design
 
@@ -146,13 +151,13 @@ turns that off.
 | `crates/core/tests/motion.rs` | The switch's knob flight against 1nstall's own `motion.cs`, compiled and run | 6,027 values, largest difference 1.6e-12 |
 | `crates/app/tests/store.rs` | The plugin's 8 tests, on real files with the real lock | 8 passed |
 | `crates/core/src/look.rs` (unit tests) | Text and accent contrast in both themes; high contrast uses Windows' colours | pass |
-| `tests/crash.ps1` | `squ4t-cli add 1` killed at random moments mid-write (200 runs, 82 killed) | ledger always valid, no count lost |
+| `tests/crash.ps1` | `squ4t-cli add 1` killed at random moments mid-write (200 runs, 82 killed) | ledger always valid, no count lost (run on 1.0.1) |
 | `tests/ui.ps1` | Every control by UI Automation: the number inside Record, Record, Undo, Snooze, the cog, the switches, Save off until a field changes; buttons of one size on two columns; the window fits both views | pass |
 | `crates/app/src/update.rs` (unit tests) | Version order, SHA-256 against known answers, GitHub's release description, releases that must be refused, the swap of both programs and its undo | 6 passed |
 | Update, by hand | A build labelled 1.0.0 found the published 1.0.1, installed it from the panel's button and from `squ4t-cli update install`, and restarted; both programs then matched the release zip byte for byte | done once |
 | Notification, by hand | `squ4t-cli test-alert`, then a screen capture: the banner is headed "squ4t" with the ring; clicking it opens the panel | shown |
 | `tests/reopen.ps1` | Open, close and reopen the panel twice; each reopened panel must match the first, pixel for pixel | 0.0% different |
-| `tests/measure.ps1` | Panel ready 69 ms (median of 10); peak 17.9 MB; at rest 16.7 MB working set, 2.7 MB private, about 0.16 s of CPU a minute | |
+| `tests/measure.ps1` | Panel ready 69 ms (median of 10); peak 17.9 MB; at rest 16.7 MB working set, 2.7 MB private, about 0.16 s of CPU a minute | measured on 1.0.1, not again on 1.1.0 |
 
 The oracle test catches deliberate bugs: changing the snooze to 301 s, Python's float formatting
 threshold, or `version: true` acceptance each makes it fail.
