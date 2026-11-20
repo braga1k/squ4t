@@ -3,6 +3,7 @@
 //!     squ4t-cli status | tick | add N | undo | pause | resume | snooze | settings INTERVAL SUGGESTED
 //!     squ4t-cli open | refresh | test-alert | quit
 //!     squ4t-cli autostart on | off | status
+//!     squ4t-cli update [install]
 //!     [--data-dir DIR]
 //!
 //! Ledger actions print store.py's JSON. A change made here is passed to the running tray app.
@@ -31,7 +32,7 @@ fn main() -> ExitCode {
         args.remove(i);
     }
     let Some(action) = args.first().cloned() else {
-        eprintln!("usage: squ4t-cli status | add N | undo | pause | resume | snooze | settings INTERVAL SUGGESTED | open | test-alert | autostart on|off");
+        eprintln!("usage: squ4t-cli status | add N | undo | pause | resume | snooze | settings INTERVAL SUGGESTED | open | test-alert | autostart on|off | update [install]");
         return ExitCode::from(2);
     };
     let values = &args[1..];
@@ -48,6 +49,9 @@ fn main() -> ExitCode {
         }
         eprintln!("squ4t is not running");
         return ExitCode::from(1);
+    }
+    if action == "update" {
+        return update(values.first().map(String::as_str));
     }
     if action == "autostart" {
         return autostart(values.first().map(String::as_str));
@@ -90,6 +94,38 @@ fn autostart(choice: Option<&str>) -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
             eprintln!("{e}");
+            ExitCode::from(1)
+        }
+    }
+}
+
+/// `update` looks for a newer release; `update install` also installs it. A running app keeps
+/// running the old program until it is restarted.
+fn update(choice: Option<&str>) -> ExitCode {
+    use squ4t::update;
+    let found = match update::check() {
+        Ok(found) => found,
+        Err(e) => {
+            eprintln!("could not check for updates: {e}");
+            return ExitCode::from(1);
+        }
+    };
+    let Some(release) = found else {
+        println!("{} is up to date", env!("CARGO_PKG_VERSION"));
+        return ExitCode::SUCCESS;
+    };
+    println!("{} available", update::version_text(release.version));
+    if choice != Some("install") {
+        return ExitCode::SUCCESS;
+    }
+    let Some(dir) = std::env::current_exe().ok().and_then(|exe| exe.parent().map(|d| d.to_path_buf())) else { return ExitCode::from(1) };
+    match update::install(&release, &dir) {
+        Ok(()) => {
+            println!("updated to {}", update::version_text(release.version));
+            ExitCode::SUCCESS
+        }
+        Err(e) => {
+            eprintln!("could not update: {e}");
             ExitCode::from(1)
         }
     }

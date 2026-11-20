@@ -1,6 +1,7 @@
 //! What the tray app (`squ4t.exe`) and the command line (`squ4t-cli.exe`) share.
 
 pub mod store;
+pub mod update;
 
 use std::path::Path;
 

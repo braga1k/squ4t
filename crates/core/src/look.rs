@@ -8,8 +8,8 @@
 //! - Moments: the two counts, set large in steady figures.
 //! - Signature: the countdown ring of the tray icon, repeated beside the status line.
 //!
-//! One graphite ramp for every surface, three text roles, one ember accent used only by the
-//! ring and the switch. No gradients, glows or shadows: depth comes from surface steps and
+//! One graphite ramp for every surface, three text roles, one ember accent: the ring, the
+//! switches and the Record button. No gradients, glows or shadows: depth comes from surface steps and
 //! hairlines. High contrast hands every colour to Windows.
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -79,7 +79,7 @@ pub struct Look {
     pub primary: Rgba,
     pub primary_hover: Rgba,
     pub on_primary: Rgba,
-    /// Ember: the countdown ring and the switch, nothing else.
+    /// Ember: the countdown ring, the switches and the Record button.
     pub accent: Rgba,
     /// The knob of a switch that is on.
     pub on_accent: Rgba,
@@ -174,6 +174,7 @@ mod tests {
             assert!(contrast(l.text, l.raised) >= 4.5, "text in inputs, light={light}");
             assert!(contrast(l.on_primary, l.primary) >= 4.5, "primary button label, light={light}");
             assert!(contrast(l.accent, l.surface) >= 3.0, "accent as a graphic, light={light}");
+            assert!(contrast(l.surface, l.accent) >= 4.5, "the words on the Record button, light={light}");
         }
     }
 

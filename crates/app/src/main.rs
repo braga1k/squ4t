@@ -21,7 +21,7 @@ use art::RingState;
 use slint::winit_030::{winit, EventResult, WinitWindowAccessor};
 use slint::{Color, ComponentHandle};
 use squ4t::store::{default_dir, Lock, Store};
-use squ4t::{autostart, countdown, format_number, instance_title, tell_instance, Strings as Catalog, MSG_OPEN};
+use squ4t::{autostart, countdown, format_number, instance_title, tell_instance, update, Strings as Catalog, MSG_OPEN};
 use squ4t_core::ledger::Report;
 use squ4t_core::look::{self, Look, Rgba};
 use tray::{Appearance, Event, MenuCommand, MenuState, Tray};
@@ -29,10 +29,23 @@ use tray::{Appearance, Event, MenuCommand, MenuState, Tray};
 slint::include_modules!();
 
 const PANEL_W: f64 = 320.0;
-const PANEL_H: f64 = 378.0;
+const PANEL_H: f64 = 255.0;
 
 type Job = (String, Vec<String>);
 type Outcome = (String, Result<Report, String>);
+
+/// Where the look for a newer version stands.
+#[derive(Clone, Debug, PartialEq)]
+enum Update {
+    Idle,
+    Checking,
+    Current,
+    Available(update::Release),
+    Installing,
+    /// In place; the app restarts when the panel closes.
+    Installed,
+    Failed(&'static str),
+}
 
 struct App {
     ui: Panel,
@@ -66,6 +79,9 @@ struct App {
     /// The panel is leaving; `close_generation` tells a finished exit from one that was cancelled.
     closing: bool,
     close_generation: u32,
+    /// The data folder: the choice of automatic updates lives there.
+    data: std::path::PathBuf,
+    update: Update,
 }
 
 thread_local! {
@@ -296,10 +312,12 @@ impl App {
         t.set_on_primary(color(c.on_primary));
         t.set_accent(color(c.accent));
         t.set_on_accent(color(c.on_accent));
+        t.set_on_accent_text(color(if c.high_contrast { c.on_accent } else { c.surface }));
         t.set_focus(color(c.focus));
         t.set_negative(color(c.negative));
         t.set_motion(self.anim.enabled);
         t.set_check_mark(art::check_mark(c.text, 3.0));
+        t.set_gear(art::gear_image(64, c.text_secondary));
         self.ring_key = None;
         self.last_icon.clear();
         self.tick_display();
@@ -323,6 +341,7 @@ impl App {
             self.ui.set_suggested_draft(r.suggested as i32);
         }
         self.update_record_text();
+        self.ui.set_settings_open(false);
         let (x, y, scale) = tray::panel_position(self.tray.icon_rect(), PANEL_W, PANEL_H);
         self.set_scale(scale);
         if self.closing {
@@ -401,6 +420,9 @@ impl App {
         let _ = self.ui.hide();
         self.visible = false;
         self.closing = false;
+        if self.update == Update::Installed {
+            self.restart(false);
+        }
     }
 
     fn toggle_panel(&mut self) {
@@ -415,7 +437,12 @@ impl App {
     }
 
     fn update_record_text(&self) {
-        self.ui.set_record_text(self.text.tn("record", self.ui.get_count() as i128).into());
+        let n = self.ui.get_count() as i128;
+        let label = self.text.tn("record", n);
+        let (before, after) = label.split_once(&format_number(n)).unwrap_or((label.as_str(), ""));
+        self.ui.set_record_prefix(before.trim().into());
+        self.ui.set_record_suffix(after.trim().into());
+        self.ui.set_record_text(label.as_str().into());
     }
 
     fn toggle_reminders(&mut self) {
@@ -428,6 +455,123 @@ impl App {
             self.run_animations();
         }
         self.request(action, vec![]);
+    }
+
+    // ------------------------------------------------------------ updates
+
+    fn update_busy(&self) -> bool {
+        matches!(self.update, Update::Checking | Update::Installing)
+    }
+
+    /// The version line and the button under it.
+    fn refresh_update(&self) {
+        let t = |key: &str| self.text.t(key);
+        let found = match &self.update {
+            Update::Idle => String::new(),
+            Update::Checking => t("update.checking"),
+            Update::Current => t("update.current"),
+            Update::Available(r) => t("update.available").replace("%1", &update::version_text(r.version)),
+            Update::Installing => t("update.installing"),
+            Update::Installed => t("update.restart"),
+            Update::Failed(key) => t(key),
+        };
+        let version = t("version").replace("%1", env!("CARGO_PKG_VERSION"));
+        self.ui.set_version_text(if found.is_empty() { version } else { format!("{version} \u{b7} {found}") }.into());
+        let button = match &self.update {
+            Update::Available(r) => t("update.install").replace("%1", &update::version_text(r.version)),
+            _ => t("update.check"),
+        };
+        self.ui.set_update_button(button.into());
+        self.ui.set_update_busy(self.update_busy() || self.update == Update::Installed);
+        self.ui.set_auto_update(update::auto_enabled(&self.data));
+    }
+
+    /// The button: look for an update, or install the one that was found.
+    fn update_clicked(&mut self) {
+        match self.update.clone() {
+            Update::Available(release) => self.install_update(release, false),
+            Update::Checking | Update::Installing | Update::Installed => {}
+            _ => self.check_update(false),
+        }
+    }
+
+    fn check_update(&mut self, automatic: bool) {
+        self.update = Update::Checking;
+        self.refresh_update();
+        std::thread::spawn(move || {
+            let found = update::check();
+            let _ = slint::invoke_from_event_loop(move || with_app(move |a| a.on_update_checked(found, automatic)));
+        });
+    }
+
+    fn on_update_checked(&mut self, found: Result<Option<update::Release>, String>, automatic: bool) {
+        if automatic {
+            // Once a day, whatever the answer: a failing check is not repeated every few minutes.
+            update::mark_checked(&self.data);
+        }
+        match found {
+            Ok(Some(release)) if automatic => return self.install_update(release, true),
+            Ok(Some(release)) => self.update = Update::Available(release),
+            Ok(None) => self.update = Update::Current,
+            Err(e) => {
+                eprintln!("update check: {e}");
+                self.update = Update::Failed("update.failed");
+            }
+        }
+        self.refresh_update();
+    }
+
+    fn install_update(&mut self, release: update::Release, automatic: bool) {
+        let Some(dir) = std::env::current_exe().ok().and_then(|exe| exe.parent().map(|d| d.to_path_buf())) else { return };
+        self.update = Update::Installing;
+        self.refresh_update();
+        std::thread::spawn(move || {
+            let done = update::install(&release, &dir);
+            let _ = slint::invoke_from_event_loop(move || with_app(move |a| a.on_update_installed(done, automatic)));
+        });
+    }
+
+    /// The new programs are in place. Asked for by hand, the app restarts now and shows the panel
+    /// again; an automatic update waits for the panel to be closed.
+    fn on_update_installed(&mut self, done: Result<(), String>, automatic: bool) {
+        match done {
+            Ok(()) if automatic && self.visible => self.update = Update::Installed,
+            Ok(()) => return self.restart(!automatic && self.visible),
+            Err(e) => {
+                eprintln!("update: {e}");
+                self.update = Update::Failed("update.install-failed");
+            }
+        }
+        self.refresh_update();
+    }
+
+    fn restart(&mut self, show: bool) {
+        let Ok(exe) = std::env::current_exe() else { return };
+        let mut next = std::process::Command::new(exe);
+        next.arg("--after-update");
+        if show {
+            next.arg("--show");
+        }
+        if self.ui_test {
+            next.arg("--ui-test");
+        }
+        if next.spawn().is_ok() {
+            let _ = slint::quit_event_loop();
+        }
+    }
+
+    fn toggle_auto_update(&mut self) {
+        let on = !update::auto_enabled(&self.data);
+        let _ = update::set_auto(&self.data, on);
+        self.refresh_update();
+        self.auto_update();
+    }
+
+    /// With automatic updates on: one look a day, and the update installed when there is one.
+    fn auto_update(&mut self) {
+        if !self.ui_test && !self.update_busy() && self.update != Update::Installed && update::auto_enabled(&self.data) && update::check_due(&self.data) {
+            self.check_update(true);
+        }
     }
 
     fn on_event(&mut self, event: Event) {
@@ -504,6 +648,8 @@ fn since_process_start_ms() -> u64 {
 fn main() {
     let startup_test = std::env::args().any(|a| a == "--startup-test");
     let ui_test = startup_test || std::env::args().any(|a| a == "--ui-test");
+    let after_update = std::env::args().any(|a| a == "--after-update");
+    let show = std::env::args().any(|a| a == "--show");
     let migrated = squ4t::store::migrate_legacy_ledger();
     let store = Store::new(default_dir());
     let blocked = migrated.is_err();
@@ -514,10 +660,21 @@ fn main() {
         return;
     }
     // One instance per data folder. A second start opens the running one's panel, as a click on a reminder does.
-    let Ok(Some(_instance)) = Lock::try_take(&store.dir().join("instance.lock")) else {
+    let lock = store.dir().join("instance.lock");
+    let mut instance = Lock::try_take(&lock);
+    // Started by the version it replaces: that one is on its way out and still holds the lock.
+    let patience = Instant::now();
+    while after_update && matches!(instance, Ok(None)) && patience.elapsed() < Duration::from_secs(10) {
+        std::thread::sleep(Duration::from_millis(100));
+        instance = Lock::try_take(&lock);
+    }
+    let Ok(Some(_instance)) = instance else {
         tell_instance(store.dir(), MSG_OPEN);
         return;
     };
+    if let Some(dir) = std::env::current_exe().ok().and_then(|exe| exe.parent().map(|d| d.to_path_buf())) {
+        update::remove_old(&dir);
+    }
     // The software renderer: no GPU context, the smallest memory footprint (1nstall phase 3).
     if let Err(e) = slint::BackendSelector::new().backend_name("winit".into()).renderer_name("software".into()).select() {
         eprintln!("{e}");
@@ -536,6 +693,8 @@ fn main() {
         suggested: text.t("suggested").into(),
         save: text.t("save").into(),
         reminders: text.t("reminders").into(),
+        settings: text.t("settings").into(),
+        auto_update: text.t("update.auto").into(),
         hint: text.t("hint").into(),
     });
 
@@ -582,10 +741,14 @@ fn main() {
         last_icon: Vec::new(),
         closing: false,
         close_generation: 0,
+        data: store.dir().to_path_buf(),
+        update: Update::Idle,
     };
     APP.with(|cell| *cell.borrow_mut() = Some(app));
 
     ui.on_close(|| with_app(|a| a.close_panel()));
+    ui.on_check_updates(|| with_app(|a| a.update_clicked()));
+    ui.on_toggle_auto_update(|| with_app(|a| a.toggle_auto_update()));
     ui.on_count_edited(|_| with_app(|a| a.update_record_text()));
     ui.on_record(|count| with_app(move |a| a.request("add", vec![count.to_string()])));
     ui.on_undo(|| with_app(|a| a.request("undo", vec![])));
@@ -614,13 +777,23 @@ fn main() {
         EventResult::Propagate
     });
 
-    with_app(|a| {
+    with_app(move |a| {
         a.apply_appearance();
         a.refresh();
         a.request("tick", vec![]); // Component.onCompleted
         a.display.start(slint::TimerMode::Repeated, Duration::from_secs(1), || with_app(|a| a.tick_display()));
         // A slow safety net for a timer the system did not fire: cheap, and no reminder depends on it.
-        a.safety.start(slint::TimerMode::Repeated, Duration::from_secs(300), || with_app(|a| a.request("tick", vec![])));
+        a.safety.start(slint::TimerMode::Repeated, Duration::from_secs(300), || {
+            with_app(|a| {
+                a.request("tick", vec![]);
+                a.auto_update();
+            })
+        });
+        a.refresh_update();
+        slint::Timer::single_shot(Duration::from_secs(30), || with_app(|a| a.auto_update()));
+        if show {
+            slint::Timer::single_shot(Duration::from_millis(1200), || with_app(|a| a.open_panel()));
+        }
         if !a.ui_test && !a.text.t("title").is_empty() {
             first_run_autostart(a);
         }

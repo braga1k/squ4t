@@ -70,6 +70,32 @@ pub fn ring_image(size_px: u32, state: RingState, ink: Rgba, accent: Rgba) -> Im
     Image::from_rgba8(buffer)
 }
 
+/// The cog that opens the settings: eight teeth round a ring, in one ink.
+pub fn gear_image(size_px: u32, ink: Rgba) -> Image {
+    let size = size_px.max(1);
+    let s = size as f64;
+    let mut buffer = SharedPixelBuffer::<Rgba8Pixel>::new(size, size);
+    let pixels = buffer.make_mut_slice();
+    let mut i = 0;
+    raster(
+        size,
+        |x, y| {
+            let (dx, dy) = (x - s / 2.0, y - s / 2.0);
+            let r = (dx * dx + dy * dy).sqrt();
+            let turn = (dy.atan2(dx) / std::f64::consts::TAU * 8.0).rem_euclid(1.0);
+            let tooth = (turn - 0.5).abs() < 0.24;
+            let outer = if tooth { s * 0.47 } else { s * 0.35 };
+            (r <= outer && r >= s * 0.19).then_some((ink, 1.0))
+        },
+        |r, g, b, a| {
+            pixels[i] = Rgba8Pixel { r, g, b, a };
+            i += 1;
+        },
+        false,
+    );
+    Image::from_rgba8(buffer)
+}
+
 /// Supersamples `sample` over a square; `premultiplied` chooses the output form.
 fn raster(size: u32, sample: impl Fn(f64, f64) -> Option<(Rgba, f64)>, mut put: impl FnMut(u8, u8, u8, u8), premultiplied: bool) {
     const SS: usize = 4;
