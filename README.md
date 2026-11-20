@@ -114,6 +114,8 @@ turns that off.
 
 ## How it is checked
 
+[CI](https://github.com/braga1k/squ4t/actions/workflows/ci.yml) runs these on a clean Windows runner, and records `store.py` again on Linux to confirm the oracle.
+
 | Check | What it compares | Result here |
 | --- | --- | --- |
 | `crates/core/tests/oracle.rs` | The Rust ledger against 23,309 steps recorded from the original `store.py` ([oracle/](oracle/README.md)) | unexplained 0 |
@@ -148,7 +150,6 @@ threshold, or `version: true` acceptance each makes it fail.
 - Multiple monitors and other display scales.
 - That Do not disturb silences the reminder. Windows applies it to tray notifications, but this
   was not tested.
-- The CI workflow has not run yet: it needs the repository on GitHub.
 
 ## Licence
 
